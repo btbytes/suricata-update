@@ -18,9 +18,9 @@
 import logging
 import time
 
+
 class SuriColourLogHandler(logging.StreamHandler):
-    """An alternative stream log handler that logs with Suricata inspired
-    log colours."""
+    """An alternative stream log handler that logs with Suricata inspired log colours."""
 
     GREEN = "\x1b[32m"
     BLUE = "\x1b[34m"
@@ -31,7 +31,7 @@ class SuriColourLogHandler(logging.StreamHandler):
     ORANGE = "\x1b[38;5;208m"
     RESET = "\x1b[0m"
 
-    def formatTime(self, record):
+    def format_time(self, record):
         lt = time.localtime(record.created)
         t = "%d/%d/%d -- %02d:%02d:%02d" % (lt.tm_mday,
                                             lt.tm_mon,
@@ -55,7 +55,7 @@ class SuriColourLogHandler(logging.StreamHandler):
 
         self.stream.write("%s%s%s - <%s%s%s> -- %s%s%s\n" % (
             self.GREEN,
-            self.formatTime(record),
+            self.format_time(record),
             self.RESET,
             level_prefix,
             record.levelname.title(),

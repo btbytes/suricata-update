@@ -25,6 +25,7 @@ from __future__ import print_function
 
 import re
 
+
 class SignatureMap(object):
     """SignatureMap maps signature IDs to a signature info dict.
 
@@ -72,7 +73,6 @@ class SignatureMap(object):
         For convenience, if the generator_id is 3 and the signature is
         not found, a second lookup will be done using a generator_id
         of 1.
-
         """
 
         key = (generator_id, signature_id)
@@ -82,10 +82,7 @@ class SignatureMap(object):
         return sig
 
     def load_generator_map(self, fileobj):
-        """Load the generator message map (gen-msg.map) from a
-        file-like object.
-
-        """
+        """Load the generator message map (gen-msg.map) from a file-like object."""
         for line in fileobj:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -100,10 +97,7 @@ class SignatureMap(object):
             self.map[(entry["gid"], entry["sid"])] = entry
 
     def load_signature_map(self, fileobj, defaultgid=1):
-        """Load signature message map (sid-msg.map) from a file-like
-        object.
-
-        """
+        """Load signature message map (sid-msg.map) from a file-like object."""
 
         for line in fileobj:
             line = line.strip()
@@ -132,6 +126,7 @@ class SignatureMap(object):
                 }
             self.map[(entry["gid"], entry["sid"])] = entry
 
+
 class ClassificationMap(object):
     """ClassificationMap maps classification IDs and names to a dict
     object describing a classification.
@@ -156,7 +151,6 @@ class ClassificationMap(object):
         {'priority': 2, 'name': 'bad-unknown', 'description': 'Potentially Bad Traffic'}
         >>> classmap.get_by_name("bad-unknown")
         {'priority': 2, 'name': 'bad-unknown', 'description': 'Potentially Bad Traffic'}
-
     """
 
     def __init__(self, fileobj=None):

@@ -20,14 +20,13 @@
 try:
     # Python 3.3...
     from urllib.request import urlopen
-    from urllib.error import HTTPError
 except ImportError:
     # Python 2.6, 2.7.
     from urllib2 import urlopen
-    from urllib2 import HTTPError
 
 # Number of bytes to read at a time in a GET request.
 GET_BLOCK_SIZE = 8192
+
 
 def get(url, fileobj, progress_hook=None):
     """ Perform a GET request against a URL writing the contents into
@@ -46,10 +45,11 @@ def get(url, fileobj, progress_hook=None):
 
     remote = urlopen(url)
     info = remote.info()
+    content_length = 0
     try:
         content_length = int(info["content-length"])
-    except:
-        content_length = 0
+    except Exception:
+        pass
     bytes_read = 0
     while True:
         buf = remote.read(GET_BLOCK_SIZE)
@@ -64,10 +64,9 @@ def get(url, fileobj, progress_hook=None):
     fileobj.flush()
     return bytes_read, info
 
+
 if __name__ == "__main__":
-
     import sys
-
     try:
         get(sys.argv[1], sys.stdout)
     except Exception as err:

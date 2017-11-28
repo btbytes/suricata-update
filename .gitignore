@@ -4,6 +4,8 @@ _build
 build
 .DS_Store
 _work
+dist/
+suricata_update.egg-info/
 
 # Development update.yaml
 /update.yaml

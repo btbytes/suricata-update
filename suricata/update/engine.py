@@ -32,6 +32,7 @@ logger = logging.getLogger()
 SuricataVersion = namedtuple(
     "SuricataVersion", ["major", "minor", "patch", "full", "short", "raw"])
 
+
 def get_path(program="suricata"):
     """Find Suricata in the shell path."""
     for path in os.environ["PATH"].split(os.pathsep):
@@ -43,6 +44,7 @@ def get_path(program="suricata"):
             logger.debug("Found %s." % (path))
             return suricata_path
     return None
+
 
 def parse_version(buf):
     m = re.search("((\d+)\.(\d+)(\.(\d+))?(\w+)?)", str(buf).strip())
@@ -60,6 +62,7 @@ def parse_version(buf):
             raw=buf)
     return None
 
+
 def get_version(path=None):
     """Get a SuricataVersion named tuple describing the version.
 
@@ -74,6 +77,7 @@ def get_version(path=None):
     if output:
         return parse_version(output)
     return None
+
 
 def test_configuration(path, rule_filename=None):
     """Test the Suricata configuration with -T."""

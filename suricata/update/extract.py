@@ -20,6 +20,7 @@ from __future__ import print_function
 import tarfile
 from zipfile import ZipFile
 
+
 def extract_tar(filename):
     files = {}
 
@@ -40,6 +41,7 @@ def extract_tar(filename):
 
     return files
 
+
 def extract_zip(filename):
     files = {}
 
@@ -48,8 +50,9 @@ def extract_zip(filename):
             if name.endswith("/"):
                 continue
             files[name] = reader.read(name)
-    
+
     return files
+
 
 def try_extract(filename):
     try:
@@ -61,5 +64,5 @@ def try_extract(filename):
         return extract_zip(filename)
     except:
         pass
-    
+
     return None

@@ -20,7 +20,10 @@ setup(
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
     ],
-    scripts = [
-        "bin/suricata-update",
-    ],
+    install_requires=['pyyaml'],
+    entry_points={
+        'console_scripts': [
+            'suricata-update=suricata.update.main:main',
+        ],
+    },
 )

@@ -27,20 +27,9 @@ import time
 import hashlib
 import fnmatch
 import subprocess
-import types
 import shutil
 import glob
 import io
-
-try:
-    import yaml
-except:
-    print("error: pyyaml is required")
-    sys.exit(1)
-
-if sys.argv[0] == __file__:
-    sys.path.insert(
-        0, os.path.abspath(os.path.join(__file__, "..", "..", "..")))
 
 import suricata.update.rule
 import suricata.update.engine
@@ -56,9 +45,8 @@ if len(logging.root.handlers) == 0 and os.isatty(sys.stderr.fileno()):
     logger.setLevel(level=logging.INFO)
     logger.addHandler(SuriColourLogHandler())
 else:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - <%(levelname)s> - %(message)s")
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s - <%(levelname)s> - %(message)s")
     logger = logging.getLogger()
 
 # If Suricata is not found, default to this version.
@@ -79,8 +67,9 @@ ET_OPEN_URL = ("https://rules.emergingthreats.net/open/"
 # single file concatenating all input rule files together.
 DEFAULT_OUTPUT_RULE_FILENAME = "suricata.rules"
 
+
 class AllRuleMatcher(object):
-    """Matcher object to match all rules. """
+    """Matcher object to match all rules."""
 
     def match(self, rule):
         return True
@@ -91,13 +80,13 @@ class AllRuleMatcher(object):
             return cls()
         return None
 
-class IdRuleMatcher(object):
-    """Matcher object to match an idstools rule object by its signature
-    ID."""
 
-    def __init__(self, generatorId, signatureId):
-        self.generatorId = generatorId
-        self.signatureId = signatureId
+class IdRuleMatcher(object):
+    """Matcher object to match an idstools rule object by its signature ID."""
+
+    def __init__(self, generator_id, signature_id):
+        self.generator_id = generator_id
+        self.signature_id = signature_id
 
     def match(self, rule):
         return self.generatorId == rule.gid and self.signatureId == rule.sid
@@ -106,22 +95,24 @@ class IdRuleMatcher(object):
     def parse(cls, buf):
         logger.debug("Parsing ID matcher: %s" % (buf))
         try:
-            signatureId = int(buf)
-            return cls(1, signatureId)
+            signature_id = int(buf)
+            return cls(1, signature_id)
         except:
             pass
         try:
             generatorString, signatureString = buf.split(":")
-            generatorId = int(generatorString)
-            signatureId = int(signatureString)
-            return cls(generatorId, signatureId)
+            generator_id = int(generatorString)
+            signature_id = int(signatureString)
+            return cls(generator_id, signature_id)
         except:
             pass
         return None
 
+
 class FilenameMatcher(object):
-    """Matcher object to match a rule by its filename. This is similar to
-    a group but has no specifier prefix.
+    """Matcher object to match a rule by its filename.
+
+    This is similar to a group but has no specifier prefix.
     """
 
     def __init__(self, pattern):
@@ -142,9 +133,9 @@ class FilenameMatcher(object):
                 pass
         return None
 
+
 class GroupMatcher(object):
-    """Matcher object to match an idstools rule object by its group (ie:
-    filename).
+    """Matcher object to match an idstools rule object by its group (ie: filename).
 
     The group is just the basename of the rule file with or without
     extension.
@@ -165,8 +156,8 @@ class GroupMatcher(object):
             # Try matching against the rule group without the file
             # extension.
             if fnmatch.fnmatch(
-                    os.path.splitext(
-                        os.path.basename(rule.group))[0], self.pattern):
+                    os.path.splitext(os.path.basename(rule.group))[0],
+                    self.pattern):
                 return True
         return False
 
@@ -183,9 +174,9 @@ class GroupMatcher(object):
             return cls(buf.strip())
         return None
 
+
 class ReRuleMatcher(object):
-    """Matcher object to match an idstools rule object by regular
-    expression."""
+    """Matcher object to match an idstools rule object by RE"""
 
     def __init__(self, pattern):
         self.pattern = pattern
@@ -206,6 +197,7 @@ class ReRuleMatcher(object):
             except:
                 pass
         return None
+
 
 class ModifyRuleFilter(object):
     """Filter to modify an idstools rule object.
@@ -250,8 +242,9 @@ class ModifyRuleFilter(object):
 
         return cls(matcher, pattern, b)
 
+
 class DropRuleFilter(object):
-    """ Filter to modify an idstools rule object to a drop rule. """
+    """ Filter to modify an idstools rule object to a drop rule."""
 
     def __init__(self, matcher):
         self.matcher = matcher
@@ -268,12 +261,13 @@ class DropRuleFilter(object):
         return self.matcher.match(rule)
 
     def filter(self, rule):
-        drop_rule = suricata.update.rule.parse(re.sub("^\w+", "drop", rule.raw))
+        drop_rule = suricata.update.rule.parse(re.sub("^\w+", "drop",
+                                                      rule.raw))
         drop_rule.enabled = rule.enabled
         return drop_rule
 
-class Fetch:
 
+class Fetch:
     def __init__(self, config):
         self.config = config
         if config is not None:
@@ -285,14 +279,14 @@ class Fetch:
     def check_checksum(self, tmp_filename, url):
         try:
             checksum_url = url + ".md5"
-            local_checksum = hashlib.md5(
-                open(tmp_filename, "rb").read()).hexdigest().strip()
+            local_checksum = hashlib.md5(open(tmp_filename, "rb").read(
+            )).hexdigest().strip()
             remote_checksum_buf = io.BytesIO()
             logger.info("Checking %s." % (checksum_url))
             suricata.update.net.get(checksum_url, remote_checksum_buf)
             remote_checksum = remote_checksum_buf.getvalue().decode().strip()
-            logger.debug("Local checksum=|%s|; remote checksum=|%s|" % (
-                local_checksum, remote_checksum))
+            logger.debug("Local checksum=|%s|; remote checksum=|%s|" %
+                         (local_checksum, remote_checksum))
             if local_checksum == remote_checksum:
                 os.utime(tmp_filename, None)
                 return True
@@ -307,8 +301,8 @@ class Fetch:
             percent = 0
         else:
             percent = int((bytes_read / float(content_length)) * 100)
-        buf = " %3d%% - %-30s" % (
-            percent, "%d/%d" % (bytes_read, content_length))
+        buf = " %3d%% - %-30s" % (percent,
+                                  "%d/%d" % (bytes_read, content_length))
         sys.stdout.write(buf)
         sys.stdout.flush()
         sys.stdout.write("\b" * 38)
@@ -324,9 +318,8 @@ class Fetch:
 
     def get_tmp_filename(self, url):
         url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
-        return os.path.join(
-            self.config.get_cache_dir(),
-            "%s-%s" % (url_hash, self.url_basename(url)))
+        return os.path.join(self.config.get_cache_dir(),
+                            "%s-%s" % (url_hash, self.url_basename(url)))
 
     def fetch(self, url):
         tmp_filename = self.get_tmp_filename(url)
@@ -343,10 +336,9 @@ class Fetch:
             os.makedirs(self.config.get_cache_dir(), mode=0o770)
         logger.info("Fetching %s." % (url))
         try:
-            suricata.update.net.get(
-                url,
-                open(tmp_filename, "wb"),
-                progress_hook=self.progress_hook)
+            suricata.update.net.get(url,
+                                    open(tmp_filename, "wb"),
+                                    progress_hook=self.progress_hook)
         except:
             if os.path.exists(tmp_filename):
                 os.unlink(tmp_filename)
@@ -380,6 +372,7 @@ class Fetch:
         files[basename] = open(filename, "rb").read()
         return files
 
+
 def parse_rule_match(match):
     matcher = AllRuleMatcher.parse(match)
     if matcher:
@@ -403,6 +396,7 @@ def parse_rule_match(match):
 
     return None
 
+
 def load_filters(filename):
 
     filters = []
@@ -420,8 +414,9 @@ def load_filters(filename):
 
     return filters
 
+
 def load_drop_filters(filename):
-    
+
     matchers = load_matchers(filename)
     filters = []
 
@@ -429,6 +424,7 @@ def load_drop_filters(filename):
         filters.append(DropRuleFilter(matcher))
 
     return filters
+
 
 def load_matchers(filename):
 
@@ -446,6 +442,7 @@ def load_matchers(filename):
                 matchers.append(matcher)
 
     return matchers
+
 
 def load_local(local, files):
     """Load local files into the files dict."""
@@ -471,9 +468,9 @@ def load_local(local, files):
             except Exception as err:
                 logger.error("Failed to open %s: %s" % (filename, err))
 
+
 def load_dist_rules(files):
     """Load the rule files provided by the Suricata distribution."""
-
     # In the future hopefully we can just pull in all files from
     # /usr/share/suricata/rules, but for now pull in the set of files
     # known to have been provided by the Suricata source.
@@ -509,8 +506,7 @@ def load_dist_rules(files):
             if not os.path.exists(path):
                 continue
             if not os.access(path, os.R_OK):
-                logger.warning("Distribution rule file not readable: %s",
-                               path)
+                logger.warning("Distribution rule file not readable: %s", path)
                 continue
             logger.info("Loading distribution rule file %s", path)
             try:
@@ -519,6 +515,7 @@ def load_dist_rules(files):
             except Exception as err:
                 logger.error("Failed to open %s: %s" % (path, err))
                 sys.exit(1)
+
 
 def build_report(prev_rulemap, rulemap):
     """Build a report of changes between 2 rulemaps.
@@ -529,70 +526,58 @@ def build_report(prev_rulemap, rulemap):
     - removed
     - modified
     """
-    report = {
-        "added": [],
-        "removed": [],
-        "modified": []
-    }
+    report = {"added": [], "removed": [], "modified": []}
 
     for key in rulemap:
         rule = rulemap[key]
-        if not rule.id in prev_rulemap:
+        if rule.id not in prev_rulemap:
             report["added"].append(rule)
         elif rule.format() != prev_rulemap[rule.id].format():
             report["modified"].append(rule)
     for key in prev_rulemap:
         rule = prev_rulemap[key]
-        if not rule.id in rulemap:
+        if rule.id not in rulemap:
             report["removed"].append(rule)
 
     return report
+
 
 def write_merged(filename, rulemap):
 
     if not args.quiet:
         prev_rulemap = {}
         if os.path.exists(filename):
-            prev_rulemap = build_rule_map(
-                suricata.update.rule.parse_file(filename))
+            prev_rulemap = build_rule_map(suricata.update.rule.parse_file(
+                filename))
         report = build_report(prev_rulemap, rulemap)
         enabled = len([rule for rule in rulemap.values() if rule.enabled])
         logger.info("Writing rules to %s: total: %d; enabled: %d; "
-                    "added: %d; removed %d; modified: %d" % (
-                        filename,
-                        len(rulemap),
-                        enabled,
-                        len(report["added"]),
-                        len(report["removed"]),
-                        len(report["modified"])))
-    
+                    "added: %d; removed %d; modified: %d" %
+                    (filename, len(rulemap), enabled, len(report["added"]),
+                     len(report["removed"]), len(report["modified"])))
+
     with io.open(filename, encoding="utf-8", mode="w") as fileobj:
         for rule in rulemap:
             print(rulemap[rule].format(), file=fileobj)
+
 
 def write_to_directory(directory, files, rulemap):
     if not args.quiet:
         previous_rulemap = {}
         for filename in files:
-            outpath = os.path.join(
-                directory, os.path.basename(filename))
+            outpath = os.path.join(directory, os.path.basename(filename))
             if os.path.exists(outpath):
                 previous_rulemap.update(build_rule_map(
                     suricata.update.rule.parse_file(outpath)))
         report = build_report(previous_rulemap, rulemap)
         enabled = len([rule for rule in rulemap.values() if rule.enabled])
         logger.info("Writing rule files to directory %s: total: %d; "
-                    "enabled: %d; added: %d; removed %d; modified: %d" % (
-                        directory,
-                        len(rulemap),
-                        enabled,
-                        len(report["added"]),
-                        len(report["removed"]),
-                        len(report["modified"])))
+                    "enabled: %d; added: %d; removed %d; modified: %d" %
+                    (directory, len(rulemap), enabled, len(report["added"]),
+                     len(report["removed"]), len(report["modified"])))
 
     for filename in sorted(files):
-        outpath = os.path.join(
-            directory, os.path.basename(filename))
+        outpath = os.path.join(directory, os.path.basename(filename))
         logger.debug("Writing %s." % outpath)
         if not filename.endswith(".rules"):
             open(outpath, "wb").write(files[filename])
@@ -604,12 +589,12 @@ def write_to_directory(directory, files, rulemap):
                     content.append(line.strip())
                 else:
                     content.append(rulemap[rule.id].format())
-            io.open(outpath, encoding="utf-8", mode="w").write(
-                u"\n".join(content))
+            io.open(outpath, encoding="utf-8",
+                    mode="w").write(u"\n".join(content))
+
 
 def write_yaml_fragment(filename, files):
-    logger.info(
-        "Writing YAML configuration fragment: %s" % (filename))
+    logger.info("Writing YAML configuration fragment: %s" % (filename))
     with open(filename, "w") as fileobj:
         print("%YAML 1.1", file=fileobj)
         print("---", file=fileobj)
@@ -617,6 +602,7 @@ def write_yaml_fragment(filename, files):
         for fn in sorted(files):
             if fn.endswith(".rules"):
                 print("  - %s" % os.path.basename(fn), file=fileobj)
+
 
 def write_sid_msg_map(filename, rulemap, version=1):
     logger.info("Writing %s." % (filename))
@@ -631,6 +617,7 @@ def write_sid_msg_map(filename, rulemap, version=1):
                 formatted = suricata.update.rule.format_sidmsgmap(rule)
                 if formatted:
                     print(formatted, file=fileobj)
+
 
 def build_rule_map(rules):
     """Turn a list of rules into a mapping of rules.
@@ -649,6 +636,7 @@ def build_rule_map(rules):
 
     return rulemap
 
+
 def dump_sample_configs():
 
     for filename in configs.filenames:
@@ -658,6 +646,7 @@ def dump_sample_configs():
             logger.info("Creating %s." % (filename))
             shutil.copy(os.path.join(configs.directory, filename), filename)
 
+
 def resolve_flowbits(rulemap, disabled_rules):
     flowbit_resolver = suricata.update.rule.FlowbitResolver()
     flowbit_enabled = set()
@@ -665,9 +654,8 @@ def resolve_flowbits(rulemap, disabled_rules):
         flowbits = flowbit_resolver.get_required_flowbits(rulemap)
         logger.debug("Found %d required flowbits.", len(flowbits))
         required_rules = flowbit_resolver.get_required_rules(rulemap, flowbits)
-        logger.debug(
-            "Found %d rules to enable to for flowbit requirements",
-            len(required_rules))
+        logger.debug("Found %d rules to enable to for flowbit requirements",
+                     len(required_rules))
         if not required_rules:
             logger.debug("All required rules enabled.")
             break
@@ -678,8 +666,9 @@ def resolve_flowbits(rulemap, disabled_rules):
                         rule.brief()))
             rule.enabled = True
             flowbit_enabled.add(rule)
-    logger.info("Enabled %d rules for flowbit dependencies." % (
-        len(flowbit_enabled)))
+    logger.info("Enabled %d rules for flowbit dependencies." %
+                (len(flowbit_enabled)))
+
 
 class ThresholdProcessor:
 
@@ -728,6 +717,7 @@ class ThresholdProcessor:
                             print("", file=fileout)
         logger.info("Generated %d thresholds to %s." % (count, fileout.name))
 
+
 class FileTracker:
     """Used to check if files are modified.
 
@@ -757,28 +747,24 @@ class FileTracker:
                 return True
         return False
 
-def resolve_etpro_url(etpro, suricata_version):
-    mappings = {
-        "code": etpro,
-        "version": "",
-    }
 
-    mappings["version"] = "-%d.%d.%d" % (suricata_version.major,
-                                      suricata_version.minor,
-                                      suricata_version.patch)
+def resolve_etpro_url(etpro, suricata_version):
+    mappings = {"code": etpro, "version": "", }
+
+    mappings["version"] = "-%d.%d.%d" % (
+        suricata_version.major, suricata_version.minor, suricata_version.patch)
 
     return ET_PRO_URL % mappings
 
-def resolve_etopen_url(suricata_version):
-    mappings = {
-        "version": "",
-    }
 
-    mappings["version"] = "-%d.%d.%d" % (suricata_version.major,
-                                         suricata_version.minor,
-                                         suricata_version.patch)
+def resolve_etopen_url(suricata_version):
+    mappings = {"version": "", }
+
+    mappings["version"] = "-%d.%d.%d" % (
+        suricata_version.major, suricata_version.minor, suricata_version.patch)
 
     return ET_OPEN_URL % mappings
+
 
 def ignore_file(ignore_files, filename):
     if not ignore_files:
@@ -788,11 +774,10 @@ def ignore_file(ignore_files, filename):
             return True
     return False
 
+
 class Config:
 
-    DEFAULT_LOCATIONS = [
-        "/etc/suricata/update.yaml",
-    ]
+    DEFAULT_LOCATIONS = ["/etc/suricata/update.yaml", ]
 
     DEFAULTS = {
         "disable-conf": "/etc/suricata/disable.conf",
@@ -833,8 +818,11 @@ class Config:
             self.config["local"] = []
 
     def get_arg(self, key):
-        """Return the value for a command line argument. To be compatible
-        with the configuration file, hypens are converted to underscores."""
+        """Return the value for a command line argument.
+
+        To be compatible with the configuration file,
+        hypens are converted to underscores.
+        """
         key = key.replace("-", "_")
         if hasattr(self.args, key) and getattr(self.args, key) != None:
             val = getattr(self.args, key)
@@ -865,6 +853,7 @@ class Config:
     def set_cache_dir(self, directory):
         self.cache_dir = directory
 
+
 def test_suricata(config, suricata_path):
     if not suricata_path:
         logger.info("No suricata application binary found, skipping test.")
@@ -876,8 +865,7 @@ def test_suricata(config, suricata_path):
 
     if config.get("test-command"):
         test_command = config.get("test-command")
-        logger.info("Testing Suricata configuration with: %s" % (
-            test_command))
+        logger.info("Testing Suricata configuration with: %s" % (test_command))
         env = {
             "SURICATA_PATH": suricata_path,
             "OUTPUT_DIR": config.get("output"),
@@ -896,16 +884,15 @@ def test_suricata(config, suricata_path):
                         config.get("output"), DEFAULT_OUTPUT_RULE_FILENAME)):
                 return False
         else:
-            if not suricata.update.engine.test_configuration(
-                    suricata_path):
+            if not suricata.update.engine.test_configuration(suricata_path):
                 return False
 
     return True
 
+
 def copytree(src, dst):
     """A shutil.copytree like function that will copy the files from one
     tree to another even if the path exists.
-
     """
 
     for dirpath, dirnames, filenames in os.walk(src):
@@ -922,9 +909,9 @@ def copytree(src, dst):
             try:
                 shutil.copystat(src_path, dst_path)
             except OSError as err:
-                logger.debug(
-                    "Failed to copy stat info from %s to %s", src_path,
-                    dst_path)
+                logger.debug("Failed to copy stat info from %s to %s (%s)",
+                             src_path, dst_path, err)
+
 
 def load_sources(config, suricata_version):
     files = {}
@@ -983,9 +970,11 @@ def load_sources(config, suricata_version):
 
     return files
 
+
 def copytree_ignore_backup(src, names):
-    """ Returns files to ignore when doing a backup of the rules. """
+    """ Returns files to ignore when doing a backup of the rules."""
     return [".cache"]
+
 
 def main():
     global args
@@ -995,73 +984,125 @@ def main():
     # Support the Python argparse style of configuration file.
     parser = argparse.ArgumentParser(fromfile_prefix_chars="@")
 
-    parser.add_argument("-v", "--verbose", action="store_true", default=False,
+    parser.add_argument("-v",
+                        "--verbose",
+                        action="store_true",
+                        default=False,
                         help="Be more verbose")
-    parser.add_argument("-c", "--config", metavar="<filename>",
+    parser.add_argument("-c",
+                        "--config",
+                        metavar="<filename>",
                         help="Configuration file")
-    parser.add_argument("-o", "--output", metavar="<directory>",
-                        dest="output", default="/var/lib/suricata/rules",
+    parser.add_argument("-o",
+                        "--output",
+                        metavar="<directory>",
+                        dest="output",
+                        default="/var/lib/suricata/rules",
                         help="Directory to write rules to")
-    parser.add_argument("--suricata", metavar="<path>",
+    parser.add_argument("--suricata",
+                        metavar="<path>",
                         help="Path to Suricata program")
-    parser.add_argument("--suricata-version", metavar="<version>",
+    parser.add_argument("--suricata-version",
+                        metavar="<version>",
                         help="Override Suricata version")
-    parser.add_argument("-f", "--force", action="store_true", default=False,
-                        help="Force operations that might otherwise be skipped")
-    parser.add_argument("--yaml-fragment", metavar="<filename>",
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        default=False,
+        help="Force operations that might otherwise be skipped")
+    parser.add_argument("--yaml-fragment",
+                        metavar="<filename>",
                         help="Output YAML fragment for rule inclusion")
-    parser.add_argument("--url", metavar="<url>", action="append",
-                        default=[],
-                        help="URL to use instead of auto-generating one (can be specified multiple times)")
-    parser.add_argument("--local", metavar="<path>", action="append",
-                        default=[],
-                        help="Local rule files or directories (can be specified multiple times)")
-    parser.add_argument("--sid-msg-map", metavar="<filename>",
+    parser.add_argument(
+        "--url",
+        metavar="<url>",
+        action="append",
+        default=[],
+        help="URL to use instead of auto-generating one (can be specified multiple times)")
+    parser.add_argument(
+        "--local",
+        metavar="<path>",
+        action="append",
+        default=[],
+        help="Local rule files or directories (can be specified multiple times)")
+    parser.add_argument("--sid-msg-map",
+                        metavar="<filename>",
                         help="Generate a sid-msg.map file")
-    parser.add_argument("--sid-msg-map-2", metavar="<filename>",
+    parser.add_argument("--sid-msg-map-2",
+                        metavar="<filename>",
                         help="Generate a v2 sid-msg.map file")
 
-    parser.add_argument("--disable-conf", metavar="<filename>",
+    parser.add_argument("--disable-conf",
+                        metavar="<filename>",
                         help="Filename of rule disable filters")
-    parser.add_argument("--enable-conf", metavar="<filename>",
+    parser.add_argument("--enable-conf",
+                        metavar="<filename>",
                         help="Filename of rule enable filters")
-    parser.add_argument("--modify-conf", metavar="<filename>",
+    parser.add_argument("--modify-conf",
+                        metavar="<filename>",
                         help="Filename of rule modification filters")
-    parser.add_argument("--drop-conf", metavar="<filename>",
+    parser.add_argument("--drop-conf",
+                        metavar="<filename>",
                         help="Filename of drop rules filters")
 
-    parser.add_argument("--ignore", metavar="<pattern>", action="append",
-                        default=[],
-                        help="Filenames to ignore (can be specified multiple times; default: *deleted.rules)")
-    parser.add_argument("--no-ignore", action="store_true", default=False,
+    parser.add_argument(
+        "--ignore",
+        metavar="<pattern>",
+        action="append",
+        default=[],
+        help="Filenames to ignore (can be specified multiple times; default: *deleted.rules)")
+    parser.add_argument("--no-ignore",
+                        action="store_true",
+                        default=False,
                         help="Disables the ignore option.")
 
-    parser.add_argument("--threshold-in", metavar="<filename>",
+    parser.add_argument("--threshold-in",
+                        metavar="<filename>",
                         help="Filename of rule thresholding configuration")
-    parser.add_argument("--threshold-out", metavar="<filename>",
+    parser.add_argument("--threshold-out",
+                        metavar="<filename>",
                         help="Output of processed threshold configuration")
 
-    parser.add_argument("--dump-sample-configs", action="store_true",
+    parser.add_argument("--dump-sample-configs",
+                        action="store_true",
                         default=False,
                         help="Dump sample config files to current directory")
-    parser.add_argument("--etpro", metavar="<etpro-code>",
+    parser.add_argument("--etpro",
+                        metavar="<etpro-code>",
                         help="Use ET-Pro rules with provided ET-Pro code")
-    parser.add_argument("--etopen", action="store_true",
+    parser.add_argument("--etopen",
+                        action="store_true",
                         help="Use ET-Open rules (default)")
-    parser.add_argument("-q", "--quiet", action="store_true", default=False,
-                       help="Be quiet, warning and error messages only")
-    parser.add_argument("--reload-command", metavar="<command>",
+    parser.add_argument("-q",
+                        "--quiet",
+                        action="store_true",
+                        default=False,
+                        help="Be quiet, warning and error messages only")
+    parser.add_argument("--reload-command",
+                        metavar="<command>",
                         help="Command to run after update if modified")
-    parser.add_argument("--no-reload", action="store_true", default=False,
+    parser.add_argument("--no-reload",
+                        action="store_true",
+                        default=False,
                         help="Disable reload")
-    parser.add_argument("-T", "--test-command", metavar="<command>",
+    parser.add_argument("-T",
+                        "--test-command",
+                        metavar="<command>",
                         help="Command to test Suricata configuration")
-    parser.add_argument("--no-test", action="store_true", default=False,
+    parser.add_argument("--no-test",
+                        action="store_true",
+                        default=False,
                         help="Disable testing rules with Suricata")
-    parser.add_argument("-V", "--version", action="store_true", default=False,
+    parser.add_argument("-V",
+                        "--version",
+                        action="store_true",
+                        default=False,
                         help="Display version")
 
-    parser.add_argument("--no-merge", action="store_true", default=False,
+    parser.add_argument("--no-merge",
+                        action="store_true",
+                        default=False,
                         help="Do not merge the rules into a single file")
 
     # The Python 2.7 argparse module does prefix matching which can be
@@ -1075,12 +1116,7 @@ def main():
     args = parser.parse_args()
 
     # Error out if any reserved/unimplemented arguments were set.
-    unimplemented_args = [
-        "disable",
-        "enable",
-        "modify",
-        "drop",
-    ]
+    unimplemented_args = ["disable", "enable", "modify", "drop", ]
     for arg in unimplemented_args:
         if getattr(args, arg):
             logger.error("--%s not implemented", arg)
@@ -1095,9 +1131,8 @@ def main():
     if args.quiet:
         logger.setLevel(logging.WARNING)
 
-    logger.debug("This is suricata-update version %s; Python: %s" % (
-        suricata.update.version,
-        sys.version.replace("\n", "- ")))
+    logger.debug("This is suricata-update version %s; Python: %s" %
+                 (suricata.update.version, sys.version.replace("\n", "- ")))
 
     if args.dump_sample_configs:
         return dump_sample_configs()
@@ -1121,7 +1156,7 @@ def main():
     if args.suricata:
         if not os.path.exists(args.suricata):
             logger.error("Specified path to suricata does not exist: %s",
-                     args.suricata)
+                         args.suricata)
             return 1
         suricata_path = args.suricata
     else:
@@ -1134,21 +1169,22 @@ def main():
         suricata_version = suricata.update.engine.parse_version(
             args.suricata_version)
         if not suricata_version:
-            logger.error("Failed to parse provided Suricata version: %s" % (
-                args.suricata_version))
+            logger.error("Failed to parse provided Suricata version: %s" %
+                         (args.suricata_version))
             return 1
-        logger.info("Forcing Suricata version to %s." % (suricata_version.full))
+        logger.info("Forcing Suricata version to %s." %
+                    (suricata_version.full))
     elif suricata_path:
         suricata_version = suricata.update.engine.get_version(args.suricata)
         if suricata_version:
-            logger.info("Found Suricata version %s at %s." % (
-                str(suricata_version.full), suricata_path))
+            logger.info("Found Suricata version %s at %s." %
+                        (str(suricata_version.full), suricata_path))
         else:
             logger.error("Failed to get Suricata version.")
             return 1
     else:
-        logger.info(
-            "Using default Suricata version of %s", DEFAULT_SURICATA_VERSION)
+        logger.info("Using default Suricata version of %s",
+                    DEFAULT_SURICATA_VERSION)
         suricata_version = suricata.update.engine.parse_version(
             DEFAULT_SURICATA_VERSION)
 
@@ -1200,7 +1236,7 @@ def main():
     for filename in list(files.keys()):
         if ignore_file(config.get("ignore"), filename):
             logger.info("Ignoring file %s" % (filename))
-            del(files[filename])
+            del (files[filename])
 
     rules = []
     for filename in files:
@@ -1281,19 +1317,20 @@ def main():
     # Backup the output directory.
     logger.info("Backing up current rules.")
     backup_directory = util.mktempdir()
-    shutil.copytree(args.output, os.path.join(
-        backup_directory, "backup"), ignore=copytree_ignore_backup)
+    shutil.copytree(args.output,
+                    os.path.join(backup_directory, "backup"),
+                    ignore=copytree_ignore_backup)
 
     if not args.no_merge:
         # The default, write out a merged file.
-        output_filename = os.path.join(
-            args.output, DEFAULT_OUTPUT_RULE_FILENAME)
+        output_filename = os.path.join(args.output,
+                                       DEFAULT_OUTPUT_RULE_FILENAME)
         file_tracker.add(output_filename)
         write_merged(os.path.join(output_filename), rulemap)
     else:
         for filename in files:
-            file_tracker.add(
-                os.path.join(args.output, os.path.basename(filename)))
+            file_tracker.add(os.path.join(args.output, os.path.basename(
+                filename)))
         write_to_directory(args.output, files, rulemap)
 
     if args.yaml_fragment:
@@ -1330,6 +1367,7 @@ def main():
     logger.info("Done.")
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
