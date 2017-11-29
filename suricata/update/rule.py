@@ -250,7 +250,7 @@ def parse(buf, group=None):
         if name in ["gid", "sid", "rev"]:
             rule[name] = int(val)
         elif name == "metadata":
-            if not name in rule:
+            if name not in rule:
                 rule[name] = []
             rule[name] += [v.strip() for v in val.split(",")]
         elif name == "flowbits":
@@ -315,7 +315,7 @@ def parse_file(filename, group=None):
 
 
 class FlowbitResolver(object):
-
+    """FlowbitResolver"""
     setters = ["set", "setx", "unset", "toggle"]
     getters = ["isset", "isnotset"]
 
@@ -340,9 +340,8 @@ class FlowbitResolver(object):
         return enabled
 
     def get_required_rules(self, rulemap, flowbits, include_enabled=False):
-        """Returns a list of rules that need to be enabled in order to satisfy
+        """return a list of rules that need to be enabled in order to satisfy
         the list of required flowbits.
-
         """
         required = []
 
@@ -386,8 +385,8 @@ def format_sidmsgmap(rule):
     """ Format a rule as a sid-msg.map entry. """
     try:
         return " || ".join([str(rule.sid), rule.msg] + rule.references)
-    except:
-        logger.error("Failed to format rule as sid-msg.map: %s" % (str(rule)))
+    except Exception as e:
+        logger.error("Failed to format rule as sid-msg.map: %s - %s", rule, e)
         return None
 
 
@@ -402,7 +401,7 @@ def format_sidmsgmap_v2(rule):
             str(rule.gid), str(rule.sid), str(rule.rev), "NOCLASS" if rule.
             classtype is None else rule.classtype, str(rule.priority), rule.msg
         ] + rule.references)
-    except:
-        logger.error("Failed to format rule as sid-msg-v2.map: %s" %
-                     (str(rule)))
+    except Exception as err:
+        logger.error("Failed to format rule as sid-msg-v2.map: %s - %s" %
+                     str(rule), err)
         return None

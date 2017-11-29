@@ -18,6 +18,7 @@
 from __future__ import print_function
 
 import argparse
+import atexit
 import collections
 import fnmatch
 import glob
@@ -32,6 +33,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import yaml
 import zipfile
@@ -40,10 +42,8 @@ import suricata.update.rule
 import suricata.update.net
 from suricata.update import configs
 from suricata.update.loghandler import SuriColourLogHandler
-from suricata.update import extract
-from suricata.update import util
 
-# Initialize logging, use colour if on a tty.
+# Initialize logging, use colour if on a TTY
 if len(logging.root.handlers) == 0 and os.isatty(sys.stderr.fileno()):
     logger = logging.getLogger()
     logger.setLevel(level=logging.INFO)
@@ -69,6 +69,7 @@ logging.info('type(ET_OPEN_URL) - %s', type(ET_OPEN_URL))
 # The default filename to use for the output rule file. This is a
 # single file concatenating all input rule files together.
 DEFAULT_OUTPUT_RULE_FILENAME = "suricata.rules"
+dist_rule_path = "/etc/suricata/rules"
 
 SuricataVersion = collections.namedtuple(
     "SuricataVersion", ["major", "minor", "patch", "full", "short", "raw"])
@@ -115,6 +116,19 @@ def get_version(path=None):
     return None
 
 
+def md5_hexdigest(filename):
+    """ Compute the MD5 checksum for the contents of the provided filename """
+    return hashlib.md5(open(filename).read().encode()).hexdigest()
+
+
+def mktempdir(delete_on_exit=True):
+    """ Create a temporary directory that is removed on exit. """
+    tmpdir = tempfile.mkdtemp("suricata-update")
+    if delete_on_exit:
+        atexit.register(shutil.rmtree, tmpdir, ignore_errors=True)
+    return tmpdir
+
+
 def test_configuration(path, rule_filename=None):
     """Test the Suricata configuration with -T."""
     test_command = [path, "-T", "-l", "/tmp", ]
@@ -155,12 +169,9 @@ def extract_tar(filename):
 
 
 def extract_zip(filename):
-    files = {}
     with zipfile.ZipFile(filename) as reader:
-        for name in reader.namelist():
-            if not name.endswith("/"):
-                files[name] = reader.read(name)
-    return files
+        return {name: reader.read(name)
+                for name in reader.namelist() if not name.endswith('/')}
 
 
 def try_extract(filename):
@@ -424,8 +435,7 @@ class Fetch:
 
     def url_basename(self, url):
         """ Return the base filename of the URL. """
-        filename = os.path.basename(url).split("?", 1)[0]
-        return filename
+        return os.path.basename(url).split("?", 1)[0]
 
     def get_tmp_filename(self, url):
         url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
@@ -471,7 +481,7 @@ class Fetch:
         return files
 
     def extract_files(self, filename):
-        files = extract.try_extract(filename)
+        files = try_extract(filename)
         if files:
             return files
 
@@ -523,13 +533,8 @@ def load_filters(filename):
 
 
 def load_drop_filters(filename):
-
     matchers = load_matchers(filename)
-    filters = []
-
-    for matcher in matchers:
-        filters.append(DropRuleFilter(matcher))
-
+    filters = [DropRuleFilter(m) for m in matchers]
     return filters
 
 
@@ -576,11 +581,12 @@ def load_local(local, files):
                 logger.error("Failed to open %s: %s" % (filename, err))
 
 
-def load_dist_rules(files):
+def load_dist_rules():
     """Load the rule files provided by the Suricata distribution."""
     # In the future hopefully we can just pull in all files from
     # /usr/share/suricata/rules, but for now pull in the set of files
     # known to have been provided by the Suricata source.
+    # TODO: reuse code used to do the same thing for downloaded files.
     filenames = [
         "app-layer-events.rules",
         "decoder-events.rules",
@@ -595,33 +601,15 @@ def load_dist_rules(files):
         "stream-events.rules",
         "tls-events.rules",
     ]
-
-    dist_rule_path = "/etc/suricata/rules"
-
-    if not os.path.exists(dist_rule_path):
-        logger.warning("Distribution rule directory not found: %s",
-                       dist_rule_path)
-        return
-
-    if os.path.exists(dist_rule_path):
-        if not os.access(dist_rule_path, os.R_OK):
-            logger.warning("Distribution rule path not readable: %s",
-                           dist_rule_path)
-            return
-        for filename in filenames:
-            path = os.path.join(dist_rule_path, filename)
-            if not os.path.exists(path):
-                continue
-            if not os.access(path, os.R_OK):
-                logger.warning("Distribution rule file not readable: %s", path)
-                continue
-            logger.info("Loading distribution rule file %s", path)
-            try:
-                with open(path, "rb") as fileobj:
-                    files[path] = fileobj.read()
-            except Exception as err:
-                logger.error("Failed to open %s: %s" % (path, err))
-                sys.exit(1)
+    filedata = {}
+    for filename in filenames:
+        path = os.path.join(dist_rule_path, filename)
+        try:
+            with open(path, "rb") as fileobj:
+                filedata[path] = fileobj.read()
+        except Exception as err:
+            logger.error("Failed to open dist rules file %s: %s" % (path, err))
+    return filedata
 
 
 def build_report(prev_rulemap, rulemap):
@@ -711,7 +699,7 @@ def write_yaml_fragment(filename, files):
 
 
 def write_sid_msg_map(filename, rulemap, version=1):
-    logger.info("Writing %s." % (filename))
+    logger.info("Writing sid-msg.map %s." % (filename))
     with io.open(filename, encoding="utf-8", mode="w") as fileobj:
         for key in rulemap:
             rule = rulemap[key]
@@ -1297,34 +1285,33 @@ def main():
         drop_filters += load_drop_filters(drop_conf_filename)
 
     # Check that the cache directory exists and is writable.
-    if not os.path.exists(config.get_cache_dir()):
+    config_cache_dir = config.get_cache_dir()
+    if not os.path.exists(config_cache_dir):
         try:
-            os.makedirs(config.get_cache_dir(), mode=0o770)
+            os.makedirs(config_cache_dir, mode=0o770)
         except Exception as err:
             logger.warning(
-                "Cache directory does exist and could not be created. /var/tmp will be used instead.")
+                "Cache dir %s could not be created. /var/tmp will be used.",
+                config_cache_dir)
             config.set_cache_dir("/var/tmp")
 
     files = load_sources(config, suricata_version)
-
-    load_dist_rules(files)
+    distfiledata = load_dist_rules()
+    files.update(distfiledata)
 
     # Remove ignored files.
-    for filename in list(files.keys()):
-        if ignore_file(config.get("ignore"), filename):
-            logger.info("Ignoring file %s" % (filename))
-            del (files[filename])
-
+    files = {f: files[f]
+             for f in files if not ignore_file(
+                 config.get("ignore"), f)}
     rules = []
     for filename in files:
-        if not filename.endswith(".rules"):
-            continue
-        logger.debug("Parsing %s." % (filename))
-        rules += suricata.update.rule.parse_fileobj(
-            io.BytesIO(files[filename]), filename)
+        if filename.endswith(".rules"):
+            logger.debug("Parsing %s.", filename)
+            rules += suricata.update.rule.parse_fileobj(
+                io.BytesIO(files[filename]), filename)
 
     rulemap = build_rule_map(rules)
-    logger.info("Loaded %d rules." % (len(rules)))
+    logger.info("Loaded %d rules.", len(rules))
 
     # Counts of user enabled and modified rules.
     enable_count = 0
@@ -1336,7 +1323,6 @@ def main():
     disabled_rules = []
 
     for key, rule in rulemap.items():
-
         for matcher in disable_matchers:
             if rule.enabled and matcher.match(rule):
                 logger.debug("Disabling: %s" % (rule.brief()))
@@ -1393,7 +1379,7 @@ def main():
 
     # Backup the output directory.
     logger.info('Backing up current rules.')
-    backup_directory = util.mktempdir()
+    backup_directory = mktempdir()
     logger.debug('Backup directory: %s', backup_directory)
     shutil.copytree(args.output,
                     os.path.join(backup_directory, "backup"),

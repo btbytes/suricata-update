@@ -32,7 +32,7 @@ class SuriColourLogHandler(logging.StreamHandler):
 
     def format_time(self, record):
         t = time.localtime(record.created)
-        return t.strtime('%y-%m-%d %H:%M:%S,%f')
+        return time.strftime('%y-%m-%d %H:%M:%S,%f', t)
 
     def emit(self, record):
         if record.levelname == "ERROR":
