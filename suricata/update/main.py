@@ -65,7 +65,6 @@ ET_PRO_URL = ("https://rules.emergingthreatspro.com/"
 ET_OPEN_URL = ("https://rules.emergingthreats.net/open/"
                "suricata%(version)s/"
                "emerging.rules.tar.gz")
-logging.info('type(ET_OPEN_URL) - %s', type(ET_OPEN_URL))
 # The default filename to use for the output rule file. This is a
 # single file concatenating all input rule files together.
 DEFAULT_OUTPUT_RULE_FILENAME = "suricata.rules"
@@ -1208,6 +1207,7 @@ def main():
 
     if args.dump_sample_configs:
         dump_sample_configs()
+        sys.exit(0)
 
     config = Config(args)
     try:
