@@ -18,9 +18,10 @@
 from __future__ import print_function
 
 import os
-import unittest
-import subprocess
 import shutil
+import subprocess
+import tempfile
+import unittest
 
 import suricata.update.rule
 from suricata.update import main
@@ -45,9 +46,9 @@ def has_python3():
 
 
 class TestRulecat(unittest.TestCase):
+    """TestRuleCat"""
     def test_extract_tar(self):
-        files = main.extract_tar(
-            "tests/emerging.rules.tar.gz")
+        files = main.extract_tar("tests/emerging.rules.tar.gz")
         self.assertTrue(len(files) > 0)
 
     def test_extract_zip(self):
@@ -58,12 +59,10 @@ class TestRulecat(unittest.TestCase):
         files = main.try_extract("tests/emerging.rules.zip")
         self.assertTrue(len(files) > 0)
 
-        files = main.try_extract(
-            "tests/emerging.rules.tar.gz")
+        files = main.try_extract("tests/emerging.rules.tar.gz")
         self.assertTrue(len(files) > 0)
 
-        files = main.try_extract(
-            "tests/emerging-current_events.rules")
+        files = main.try_extract("tests/emerging-current_events.rules")
         self.assertEqual(files, {})
 
     @unittest.skipIf(not has_python2(), "python2 not available")
@@ -76,8 +75,7 @@ class TestRulecat(unittest.TestCase):
             os.makedirs("./tmp/rules")
             subprocess.check_call(
                 ["/usr/bin/env",
-                 "python2",
-                 "../bin/suricata-update",
+                 "suricata-update",
                  "-c",
                  "./update.yaml",
                  "--url",
@@ -119,9 +117,8 @@ class TestRulecat(unittest.TestCase):
                 shutil.rmtree("tmp")
             os.makedirs("./tmp/rules")
             subprocess.check_call(
-                ["/usr/bin/env",
-                 "python2",
-                 "../bin/suricata-update",
+                ["/usr/bin/env"
+                 "suricata-update",
                  "-c",
                  "./update.yaml",
                  "--url",
@@ -156,6 +153,8 @@ class TestRulecat(unittest.TestCase):
 
 
 class TestFetch(unittest.TestCase):
+    """TestFetch"""
+
     def test_check_checksum(self):
         """Test that we detect when the checksum are the same. This is mainly
         to catch issues between Python 2 and 3.
@@ -170,7 +169,7 @@ class TestFetch(unittest.TestCase):
 
 
 class ThresholdProcessorTestCase(unittest.TestCase):
-
+    """ThresholdProcessorTestCase"""
     processor = main.ThresholdProcessor()
 
     def test_extract_regex(self):
@@ -217,7 +216,7 @@ class ThresholdProcessorTestCase(unittest.TestCase):
 
 
 class ModifyRuleFilterTestCase(unittest.TestCase):
-
+    """ModifyRuleFilterTestCase"""
     rule_string = """alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET MALWARE Windows executable sent when remote host claims to send an image 2"; flow: established,from_server; content:"|0d 0a|Content-Type|3a| image/jpeg|0d 0a 0d 0a|MZ"; fast_pattern:12,20; classtype:trojan-activity; sid:2020757; rev:2;)"""
 
     def test_id_match(self):
@@ -300,7 +299,7 @@ class ModifyRuleFilterTestCase(unittest.TestCase):
 
 
 class GroupMatcherTestCase(unittest.TestCase):
-
+    """GroupMatcherTestCase"""
     rule_string = """alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET MALWARE Windows executable sent when remote host claims to send an image 2"; flow: established,from_server; content:"|0d 0a|Content-Type|3a| image/jpeg|0d 0a 0d 0a|MZ"; fast_pattern:12,20; classtype:trojan-activity; sid:2020757; rev:2;)"""
 
     def test_match(self):
@@ -317,7 +316,7 @@ class GroupMatcherTestCase(unittest.TestCase):
 
 
 class FilenameMatcherTestCase(unittest.TestCase):
-
+    """FilenameMatcherTestCase"""
     rule_string = """alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET MALWARE Windows executable sent when remote host claims to send an image 2"; flow: established,from_server; content:"|0d 0a|Content-Type|3a| image/jpeg|0d 0a 0d 0a|MZ"; fast_pattern:12,20; classtype:trojan-activity; sid:2020757; rev:2;)"""
 
     def test_match(self):
@@ -330,7 +329,7 @@ class FilenameMatcherTestCase(unittest.TestCase):
 
 
 class DropRuleFilterTestCase(unittest.TestCase):
-
+    """DropRuleFilterTestCase"""
     rule_string = """alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET MALWARE Windows executable sent when remote host claims to send an image 2"; flow: established,from_server; content:"|0d 0a|Content-Type|3a| image/jpeg|0d 0a 0d 0a|MZ"; fast_pattern:12,20; classtype:trojan-activity; sid:2020757; rev:2;)"""
 
     def test_enabled_rule(self):
