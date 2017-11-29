@@ -31,8 +31,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import yaml
+import zipfile
 
 import suricata.update.rule
 import suricata.update.net
@@ -59,16 +61,14 @@ ET_PRO_URL = ("https://rules.emergingthreatspro.com/"
               "%(code)s/"
               "suricata%(version)s/"
               "etpro.rules.tar.gz")
-
 # Template URL for Emerging Threats Open rules.
 ET_OPEN_URL = ("https://rules.emergingthreats.net/open/"
                "suricata%(version)s/"
                "emerging.rules.tar.gz")
-
+logging.info('type(ET_OPEN_URL) - %s', type(ET_OPEN_URL))
 # The default filename to use for the output rule file. This is a
 # single file concatenating all input rule files together.
 DEFAULT_OUTPUT_RULE_FILENAME = "suricata.rules"
-
 
 SuricataVersion = collections.namedtuple(
     "SuricataVersion", ["major", "minor", "patch", "full", "short", "raw"])
@@ -76,50 +76,42 @@ SuricataVersion = collections.namedtuple(
 
 def get_path(program="suricata"):
     """Find Suricata in the shell path."""
-    for path in os.environ["PATH"].split(os.pathsep):
-        if not path:
-            continue
-        suricata_path = os.path.join(path, program)
-        logger.debug("Testing path: %s" % (path))
-        if os.path.exists(suricata_path):
-            logger.debug("Found %s." % (path))
-            return suricata_path
-    return None
+    found = [os.path.join(p, program)
+             for p in os.environ['PATH'].split(os.pathsep)
+             if os.path.exists(os.path.join(p, program))]
+    if found:
+        return found[0]
+    else:
+        return None
 
 
-def parse_version(buf):
-    m = re.search("((\d+)\.(\d+)(\.(\d+))?(\w+)?)", str(buf).strip())
+def parse_version(s):
+    logging.debug('parsing version string: %s', s)
+    m = re.search("((\d+)\.(\d+)(\.(\d+))?(\w+)?)", str(s).strip())
     if m:
-        full = m.group(1)
-        major = int(m.group(2))
-        minor = int(m.group(3))
-        if not m.group(5):
-            patch = 0
-        else:
-            patch = int(m.group(5))
+        full, major, minor = m.group(1), int(m.group(2)), int(m.group(3))
+        patch = int(m.group(5)) if m.group(5) else 0
         short = "%s.%s" % (major, minor)
         return SuricataVersion(major=major,
                                minor=minor,
                                patch=patch,
                                short=short,
                                full=full,
-                               raw=buf)
+                               raw=s)
     return None
 
 
 def get_version(path=None):
-    """Get a SuricataVersion named tuple describing the version.
+    """Get a Suricata Version named tuple describing the version.
 
     If no path argument is found, the envionment PATH will be
     searched.
     """
-    if not path:
-        path = get_path("suricata")
-    if not path:
-        return None
-    output = subprocess.check_output([path, "-V"])
-    if output:
-        return parse_version(output)
+    if path:
+        logging.debug("executing get_version on : %s", path)
+        output = subprocess.check_output([path, "-V"])
+        if output:
+            return parse_version(output.strip())
     return None
 
 
@@ -141,6 +133,49 @@ def test_configuration(path, rule_filename=None):
     if rc == 0:
         return True
     return False
+
+
+def extract_tar(filename):
+    files = {}
+    tf = tarfile.open(filename, mode="r:*")
+    try:
+        while True:
+            member = tf.next()
+            if member is None:
+                break
+            if not member.isfile():
+                continue
+            fileobj = tf.extractfile(member)
+            if fileobj:
+                files[member.name] = fileobj.read()
+    finally:
+        tf.close()
+
+    return files
+
+
+def extract_zip(filename):
+    files = {}
+    with zipfile.ZipFile(filename) as reader:
+        for name in reader.namelist():
+            if not name.endswith("/"):
+                files[name] = reader.read(name)
+    return files
+
+
+def try_extract(filename):
+    try:
+        return extract_tar(filename)
+    except Exception as err:
+        logging.warning("error extracting tar file - %s %s", filename, err)
+
+    try:
+        return extract_zip(filename)
+    except Exception as err:
+        logging.warning("error extracting zip file - %s %s", filename, err)
+
+    return {}
+
 
 class AllRuleMatcher(object):
     """Matcher object to match all rules."""
@@ -171,15 +206,15 @@ class IdRuleMatcher(object):
         try:
             signature_id = int(buf)
             return cls(1, signature_id)
-        except:
-            pass
+        except Exception as err:
+            logging.error(err)
         try:
             generatorString, signatureString = buf.split(":")
             generator_id = int(generatorString)
             signature_id = int(signatureString)
             return cls(generator_id, signature_id)
-        except:
-            pass
+        except Exception as err:
+            logging.error(err)
         return None
 
 
@@ -203,8 +238,8 @@ class FilenameMatcher(object):
             try:
                 group = buf.split(":", 1)[1]
                 return cls(group.strip())
-            except:
-                pass
+            except Exception as err:
+                logging.error(err)
         return None
 
 
@@ -342,6 +377,8 @@ class DropRuleFilter(object):
 
 
 class Fetch:
+    """Fetch"""
+
     def __init__(self, config):
         self.config = config
         if config is not None:
@@ -422,9 +459,7 @@ class Fetch:
         logger.info("Done.")
         return self.extract_files(tmp_filename)
 
-    def run(self, url=None, files=None):
-        if files is None:
-            files = {}
+    def run(self, url=None, files={}):
         if url:
             try:
                 files.update(self.fetch(url))
@@ -472,9 +507,7 @@ def parse_rule_match(match):
 
 
 def load_filters(filename):
-
     filters = []
-
     with open(filename) as fileobj:
         for line in fileobj:
             line = line.strip()
@@ -484,7 +517,7 @@ def load_filters(filename):
             if filter:
                 filters.append(filter)
             else:
-                log.error("Failed to parse modify filter: %s" % (line))
+                logger.error("Failed to parse modify filter: %s" % (line))
 
     return filters
 
@@ -617,7 +650,6 @@ def build_report(prev_rulemap, rulemap):
 
 
 def write_merged(filename, rulemap):
-
     if not args.quiet:
         prev_rulemap = {}
         if os.path.exists(filename):
@@ -712,7 +744,6 @@ def build_rule_map(rules):
 
 
 def dump_sample_configs():
-
     for filename in configs.filenames:
         if os.path.exists(filename):
             logger.info("File already exists, not dumping %s." % (filename))
@@ -745,7 +776,7 @@ def resolve_flowbits(rulemap, disabled_rules):
 
 
 class ThresholdProcessor:
-
+    """ThresholdProcessor"""
     patterns = [
         re.compile("\s+(re:\"(.*)\")"),
         re.compile("\s+(re:(.*?)),.*"),
@@ -769,7 +800,7 @@ class ThresholdProcessor:
             if m:
                 return threshold.replace(
                     m.group(1), "gen_id %d, sig_id %d" % (rule.gid, rule.sid))
-        return thresold
+        return threshold
 
     def process(self, filein, fileout, rulemap):
         count = 0
@@ -850,7 +881,7 @@ def ignore_file(ignore_files, filename):
 
 
 class Config:
-
+    """Config"""
     DEFAULT_LOCATIONS = ["/etc/suricata/update.yaml", ]
 
     DEFAULTS = {
@@ -898,9 +929,9 @@ class Config:
         hypens are converted to underscores.
         """
         key = key.replace("-", "_")
-        if hasattr(self.args, key) and getattr(self.args, key) != None:
+        if hasattr(self.args, key) and getattr(self.args, key):
             val = getattr(self.args, key)
-            if not val in [[], None]:
+            if val not in [[], None]:
                 return getattr(self.args, key)
         return None
 
@@ -953,14 +984,11 @@ def test_suricata(config, suricata_path):
     else:
         logger.info("Testing with suricata -T.")
         if not config.get("no-merge"):
-            if not test_configuration(
-                    suricata_path, os.path.join(
-                        config.get("output"), DEFAULT_OUTPUT_RULE_FILENAME)):
+            if not test_configuration(suricata_path, os.path.join(
+                    config.get("output"), DEFAULT_OUTPUT_RULE_FILENAME)):
                 return False
         else:
-            if not test_configuration(suricata_path):
-                return False
-
+            return test_configuration(suricata_path)
     return True
 
 
@@ -989,17 +1017,10 @@ def copytree(src, dst):
 
 def load_sources(config, suricata_version):
     files = {}
-
-    urls = []
-
-    # Add any URLs added with the --url command line parameter.
-    if config.args.url:
-        for url in config.args.url:
-            urls.append(url)
-
+    urls = [u for u in config.args.url]
     if config.get("sources"):
         for source in config.get("sources"):
-            if not "type" in source:
+            if "type" not in source:
                 logger.error("Source is missing a type: %s", str(source))
                 continue
             if source["type"] == "url":
@@ -1046,15 +1067,13 @@ def load_sources(config, suricata_version):
 
 
 def copytree_ignore_backup(src, names):
-    """ Returns files to ignore when doing a backup of the rules."""
+    """return files to ignore when doing a backup of the rules."""
     return [".cache"]
 
 
 def main():
     global args
-
     suricata_path = get_path()
-
     # Support the Python argparse style of configuration file.
     parser = argparse.ArgumentParser(fromfile_prefix_chars="@")
 
@@ -1194,11 +1213,11 @@ def main():
     for arg in unimplemented_args:
         if getattr(args, arg):
             logger.error("--%s not implemented", arg)
-            return 1
+            sys.exit(1)
 
     if args.version:
         print("suricata-update version %s" % suricata.update.version)
-        return 0
+        sys.exit(0)
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
@@ -1209,7 +1228,7 @@ def main():
                  (suricata.update.version, sys.version.replace("\n", "- ")))
 
     if args.dump_sample_configs:
-        return dump_sample_configs()
+        dump_sample_configs()
 
     config = Config(args)
     try:
@@ -1226,39 +1245,25 @@ def main():
     elif not config.get("ignore"):
         config.set("ignore", ["*deleted.rules"])
 
-    # Check for Suricata binary...
     if args.suricata:
+        suricata_path = args.suricata
         if not os.path.exists(args.suricata):
             logger.error("Specified path to suricata does not exist: %s",
                          args.suricata)
-            return 1
-        suricata_path = args.suricata
-    if not suricata_path:
-        logger.warning("No suricata application binary found on path.")
+            sys.exit(1)
 
     if args.suricata_version:
         # The Suricata version was passed on the command line, parse it.
-        suricata_version = parse_version(
-            args.suricata_version)
+        suricata_version = parse_version(args.suricata_version)
         if not suricata_version:
-            logger.error("Failed to parse provided Suricata version: %s" %
+            logger.error("Could not parse provided Suricata version: %s" %
                          (args.suricata_version))
-            return 1
-        logger.info("Forcing Suricata version to %s." %
-                    (suricata_version.full))
+            sys.exit(1)
     elif suricata_path:
-        suricata_version = get_version(args.suricata)
-        if suricata_version:
-            logger.info("Found Suricata version %s at %s." %
-                        (str(suricata_version.full), suricata_path))
-        else:
-            logger.error("Failed to get Suricata version.")
-            return 1
-    else:
-        logger.info("Using default Suricata version of %s",
-                    DEFAULT_SURICATA_VERSION)
-        suricata_version = parse_version(
-            DEFAULT_SURICATA_VERSION)
+        suricata_version = get_version(suricata_path)
+        logger.debug("Setting Suricata version to %s" %
+                     (suricata_version.full))
+    logger.info("Using Suricata - %s", suricata_version)
 
     file_tracker = FileTracker()
 
@@ -1377,18 +1382,19 @@ def main():
             os.makedirs(args.output, mode=0o770)
         except Exception as err:
             logger.error(
-                "Output directory does not exist and could not be created: %s",
+                'Output directory does not exist and could not be created: %s',
                 args.output)
             return 1
 
     # Check that output directory is writable.
     if not os.access(args.output, os.W_OK):
-        logger.error("Output directory is not writable: %s", args.output)
+        logger.error('Output directory is not writable: %s', args.output)
         return 1
 
     # Backup the output directory.
-    logger.info("Backing up current rules.")
+    logger.info('Backing up current rules.')
     backup_directory = util.mktempdir()
+    logger.debug('Backup directory: %s', backup_directory)
     shutil.copytree(args.output,
                     os.path.join(backup_directory, "backup"),
                     ignore=copytree_ignore_backup)
@@ -1435,9 +1441,7 @@ def main():
         rc = subprocess.Popen(config.get("reload-command"), shell=True).wait()
         if rc != 0:
             logger.error("Reload command exited with error: %d", rc)
-
     logger.info("Done.")
-
     return 0
 
 

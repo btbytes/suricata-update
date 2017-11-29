@@ -20,8 +20,7 @@ import time
 
 
 class SuriColourLogHandler(logging.StreamHandler):
-    """An alternative stream log handler that logs with Suricata inspired log colours."""
-
+    """A stream log handler that logs with Suricata inspired log colours"""
     GREEN = "\x1b[32m"
     BLUE = "\x1b[34m"
     REDB = "\x1b[1;31m"
@@ -32,17 +31,10 @@ class SuriColourLogHandler(logging.StreamHandler):
     RESET = "\x1b[0m"
 
     def format_time(self, record):
-        lt = time.localtime(record.created)
-        t = "%d/%d/%d -- %02d:%02d:%02d" % (lt.tm_mday,
-                                            lt.tm_mon,
-                                            lt.tm_year,
-                                            lt.tm_hour,
-                                            lt.tm_min,
-                                            lt.tm_sec)
-        return "%s" % (t)
+        t = time.localtime(record.created)
+        return t.strtime('%y-%m-%d %H:%M:%S,%f')
 
     def emit(self, record):
-
         if record.levelname == "ERROR":
             level_prefix = self.REDB
             message_prefix = self.REDB
@@ -53,13 +45,7 @@ class SuriColourLogHandler(logging.StreamHandler):
             level_prefix = self.YELLOW
             message_prefix = ""
 
-        self.stream.write("%s%s%s - <%s%s%s> -- %s%s%s\n" % (
-            self.GREEN,
-            self.format_time(record),
-            self.RESET,
-            level_prefix,
-            record.levelname.title(),
-            self.RESET,
-            message_prefix,
-            record.getMessage(),
-            self.RESET))
+        self.stream.write("%s%s%s - <%s%s%s> -- %s%s%s\n" %
+                          (self.GREEN, self.format_time(record), self.RESET,
+                           level_prefix, record.levelname.title(), self.RESET,
+                           message_prefix, record.getMessage(), self.RESET))
