@@ -14,7 +14,6 @@
 # version 2 along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 # 02110-1301, USA.
-
 """ Module for parsing Snort-like rules.
 
 Parsing is done using regular expressions and the job of this module
@@ -29,7 +28,6 @@ duplicate signature IDs.
 
 from __future__ import print_function
 
-import sys
 import re
 import logging
 import io
@@ -37,43 +35,41 @@ import io
 logger = logging.getLogger(__name__)
 
 # Rule actions we expect to see.
-actions = (
-    "alert", "log", "pass", "activate", "dynamic", "drop", "reject", "sdrop")
+actions = ("alert", "log", "pass", "activate", "dynamic", "drop", "reject",
+           "sdrop")
 
 # Compiled regular expression to detect a rule and break out some of
 # its parts.
-rule_pattern = re.compile(
-    r"^(?P<enabled>#)*[\s#]*"      # Enabled/disabled
-    r"(?P<raw>"
-    r"(?P<header>"
-    r"(?P<action>%s)\s*"        # Action
-    r"[^\s]*\s*"                # Protocol
-    r"[^\s]*\s*"                # Source address(es)
-    r"[^\s]*\s*"                # Source port
-    r"(?P<direction>[-><]+)\s*"	# Direction
-    r"[^\s]*\s*"		        # Destination address(es)
-    r"[^\s]*"                   # Destination port
-    r")"                        # End of header.
-    r"\s*"                      # Trailing spaces after header.
-    r"\((?P<options>.*)\)\s*" 	# Options
-    r")"
-    % "|".join(actions))
+rule_pattern = re.compile(r"^(?P<enabled>#)*[\s#]*"  # Enabled/disabled
+                          r"(?P<raw>"
+                          r"(?P<header>"
+                          r"(?P<action>%s)\s*"  # Action
+                          r"[^\s]*\s*"  # Protocol
+                          r"[^\s]*\s*"  # Source address(es)
+                          r"[^\s]*\s*"  # Source port
+                          r"(?P<direction>[-><]+)\s*"  # Direction
+                          r"[^\s]*\s*"  # Destination address(es)
+                          r"[^\s]*"  # Destination port
+                          r")"  # End of header.
+                          r"\s*"  # Trailing spaces after header.
+                          r"\((?P<options>.*)\)\s*"  # Options
+                          r")" % "|".join(actions))
 
 # Another compiled pattern to detect preprocessor rules.  We could
 # construct the general rule re to pick this up, but its much faster
 # this way.
-decoder_rule_pattern = re.compile(
-    r"^(?P<enabled>#)*[\s#]*"	# Enabled/disabled
-    r"(?P<raw>"
-    r"(?P<action>%s)\s*"	    # Action
-    r"\((?P<options>.*)\)\s*" 	# Options
-    r")"
-    % "|".join(actions))
+decoder_rule_pattern = re.compile(r"^(?P<enabled>#)*[\s#]*"  # Enabled/disabled
+                                  r"(?P<raw>"
+                                  r"(?P<action>%s)\s*"  # Action
+                                  r"\((?P<options>.*)\)\s*"  # Options
+                                  r")" % "|".join(actions))
+
 
 class NoEndOfOptionError(Exception):
     """Exception raised when the end of option terminator (semicolon) is
     missing."""
     pass
+
 
 class Rule(dict):
     """Class representing a rule.
@@ -149,8 +145,8 @@ class Rule(dict):
         :returns: A brief description of the rule
         :rtype: string
         """
-        return "%s[%d:%d] %s" % (
-            "" if self.enabled else "# ", self.gid, self.sid, self.msg)
+        return "%s[%d:%d] %s" % ("" if self.enabled else "# ", self.gid,
+                                 self.sid, self.msg)
 
     def __hash__(self):
         return self["raw"].__hash__()
@@ -175,29 +171,28 @@ class Rule(dict):
                 options.append("%s:%s" % (option["name"], option["value"]))
         return "%s;" % "; ".join(options)
 
+
 def remove_option(rule, name):
     rule["options"] = [
-        option for option in rule["options"] if option["name"] != name]
-    new_rule_string = "%s%s (%s)" % (
-        "" if rule.enabled else "# ",
-        rule["header"].strip(),
-        rule.rebuild_options());
+        option for option in rule["options"] if option["name"] != name
+    ]
+    new_rule_string = "%s%s (%s)" % ("" if rule.enabled else "# ",
+                                     rule["header"].strip(),
+                                     rule.rebuild_options())
     return parse(new_rule_string, rule["group"])
 
+
 def add_option(rule, name, value, index=None):
-    option = {
-        "name": name,
-        "value": value,
-    }
+    option = {"name": name, "value": value, }
     if index is None:
         rule["options"].append(option)
     else:
         rule["options"].insert(index, option)
-    new_rule_string = "%s%s (%s)" % (
-        "" if rule.enabled else "# ",
-        rule["header"].strip(),
-        rule.rebuild_options())
+    new_rule_string = "%s%s (%s)" % ("" if rule.enabled else "# ",
+                                     rule["header"].strip(),
+                                     rule.rebuild_options())
     return parse(new_rule_string, rule["group"])
+
 
 def find_opt_end(options):
     """ Find the end of an option (;) handling escapes. """
@@ -209,6 +204,7 @@ def find_opt_end(options):
             offset += 2
         else:
             return offset + i
+
 
 def parse(buf, group=None):
     """ Parse a single rule for a string buffer.
@@ -249,10 +245,7 @@ def parse(buf, group=None):
             name = option
             val = None
 
-        rule["options"].append({
-            "name": name,
-            "value": val,
-        })
+        rule["options"].append({"name": name, "value": val, })
 
         if name in ["gid", "sid", "rev"]:
             rule[name] = int(val)
@@ -277,6 +270,7 @@ def parse(buf, group=None):
     rule["raw"] = m.group("raw").strip()
 
     return rule
+
 
 def parse_fileobj(fileobj, group=None):
     """ Parse multiple rules from a file like object.
@@ -308,6 +302,7 @@ def parse_fileobj(fileobj, group=None):
         buf = ""
     return rules
 
+
 def parse_file(filename, group=None):
     """ Parse multiple rules from the provided filename.
 
@@ -317,6 +312,7 @@ def parse_file(filename, group=None):
     """
     with io.open(filename, encoding="utf-8") as fileobj:
         return parse_fileobj(fileobj, group)
+
 
 class FlowbitResolver(object):
 
@@ -378,11 +374,13 @@ class FlowbitResolver(object):
         else:
             raise Exception("Flowbit parse error on %s" % (flowbit))
 
+
 def enable_flowbit_dependencies(rulemap):
     """Helper function to resolve flowbits, wrapping the FlowbitResolver
     class. """
     resolver = FlowbitResolver()
     return resolver.resolve(rulemap)
+
 
 def format_sidmsgmap(rule):
     """ Format a rule as a sid-msg.map entry. """
@@ -392,6 +390,7 @@ def format_sidmsgmap(rule):
         logger.error("Failed to format rule as sid-msg.map: %s" % (str(rule)))
         return None
 
+
 def format_sidmsgmap_v2(rule):
     """ Format a rule as a v2 sid-msg.map entry.
 
@@ -400,10 +399,10 @@ def format_sidmsgmap_v2(rule):
     """
     try:
         return " || ".join([
-            str(rule.gid), str(rule.sid), str(rule.rev),
-            "NOCLASS" if rule.classtype is None else rule.classtype,
-            str(rule.priority), rule.msg] + rule.references)
+            str(rule.gid), str(rule.sid), str(rule.rev), "NOCLASS" if rule.
+            classtype is None else rule.classtype, str(rule.priority), rule.msg
+        ] + rule.references)
     except:
-        logger.error("Failed to format rule as sid-msg-v2.map: %s" % (
-            str(rule)))
+        logger.error("Failed to format rule as sid-msg-v2.map: %s" %
+                     (str(rule)))
         return None

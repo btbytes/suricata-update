@@ -17,22 +17,24 @@
 
 from __future__ import print_function
 
-import sys
-import re
-import os.path
-import logging
 import argparse
-import shlex
-import time
-import hashlib
+import collections
 import fnmatch
-import subprocess
-import shutil
 import glob
+import hashlib
 import io
+import logging
+import os
+import os.path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+import yaml
 
 import suricata.update.rule
-import suricata.update.engine
 import suricata.update.net
 from suricata.update import configs
 from suricata.update.loghandler import SuriColourLogHandler
@@ -67,6 +69,78 @@ ET_OPEN_URL = ("https://rules.emergingthreats.net/open/"
 # single file concatenating all input rule files together.
 DEFAULT_OUTPUT_RULE_FILENAME = "suricata.rules"
 
+
+SuricataVersion = collections.namedtuple(
+    "SuricataVersion", ["major", "minor", "patch", "full", "short", "raw"])
+
+
+def get_path(program="suricata"):
+    """Find Suricata in the shell path."""
+    for path in os.environ["PATH"].split(os.pathsep):
+        if not path:
+            continue
+        suricata_path = os.path.join(path, program)
+        logger.debug("Testing path: %s" % (path))
+        if os.path.exists(suricata_path):
+            logger.debug("Found %s." % (path))
+            return suricata_path
+    return None
+
+
+def parse_version(buf):
+    m = re.search("((\d+)\.(\d+)(\.(\d+))?(\w+)?)", str(buf).strip())
+    if m:
+        full = m.group(1)
+        major = int(m.group(2))
+        minor = int(m.group(3))
+        if not m.group(5):
+            patch = 0
+        else:
+            patch = int(m.group(5))
+        short = "%s.%s" % (major, minor)
+        return SuricataVersion(major=major,
+                               minor=minor,
+                               patch=patch,
+                               short=short,
+                               full=full,
+                               raw=buf)
+    return None
+
+
+def get_version(path=None):
+    """Get a SuricataVersion named tuple describing the version.
+
+    If no path argument is found, the envionment PATH will be
+    searched.
+    """
+    if not path:
+        path = get_path("suricata")
+    if not path:
+        return None
+    output = subprocess.check_output([path, "-V"])
+    if output:
+        return parse_version(output)
+    return None
+
+
+def test_configuration(path, rule_filename=None):
+    """Test the Suricata configuration with -T."""
+    test_command = [path, "-T", "-l", "/tmp", ]
+    if rule_filename:
+        test_command += ["-S", rule_filename]
+
+    # This makes the Suricata output look just like suricata-udpate
+    # output.
+    env = {
+        "SC_LOG_FORMAT": "%t - <%d> -- ",
+        "SC_LOG_LEVEL": "Warning",
+        "ASAN_OPTIONS": "detect_leaks=0",
+    }
+
+    rc = subprocess.Popen(test_command, env=env).wait()
+    if rc == 0:
+        return True
+    return False
 
 class AllRuleMatcher(object):
     """Matcher object to match all rules."""
@@ -879,12 +953,12 @@ def test_suricata(config, suricata_path):
     else:
         logger.info("Testing with suricata -T.")
         if not config.get("no-merge"):
-            if not suricata.update.engine.test_configuration(
+            if not test_configuration(
                     suricata_path, os.path.join(
                         config.get("output"), DEFAULT_OUTPUT_RULE_FILENAME)):
                 return False
         else:
-            if not suricata.update.engine.test_configuration(suricata_path):
+            if not test_configuration(suricata_path):
                 return False
 
     return True
@@ -979,7 +1053,7 @@ def copytree_ignore_backup(src, names):
 def main():
     global args
 
-    suricata_path = suricata.update.engine.get_path()
+    suricata_path = get_path()
 
     # Support the Python argparse style of configuration file.
     parser = argparse.ArgumentParser(fromfile_prefix_chars="@")
@@ -1159,14 +1233,12 @@ def main():
                          args.suricata)
             return 1
         suricata_path = args.suricata
-    else:
-        suricata_path = suricata.update.engine.get_path()
-        if not suricata_path:
-            logger.warning("No suricata application binary found on path.")
+    if not suricata_path:
+        logger.warning("No suricata application binary found on path.")
 
     if args.suricata_version:
         # The Suricata version was passed on the command line, parse it.
-        suricata_version = suricata.update.engine.parse_version(
+        suricata_version = parse_version(
             args.suricata_version)
         if not suricata_version:
             logger.error("Failed to parse provided Suricata version: %s" %
@@ -1175,7 +1247,7 @@ def main():
         logger.info("Forcing Suricata version to %s." %
                     (suricata_version.full))
     elif suricata_path:
-        suricata_version = suricata.update.engine.get_version(args.suricata)
+        suricata_version = get_version(args.suricata)
         if suricata_version:
             logger.info("Found Suricata version %s at %s." %
                         (str(suricata_version.full), suricata_path))
@@ -1185,7 +1257,7 @@ def main():
     else:
         logger.info("Using default Suricata version of %s",
                     DEFAULT_SURICATA_VERSION)
-        suricata_version = suricata.update.engine.parse_version(
+        suricata_version = parse_version(
             DEFAULT_SURICATA_VERSION)
 
     file_tracker = FileTracker()
