@@ -20,14 +20,15 @@ from __future__ import print_function
 import unittest
 import tempfile
 
-from suricata.update import util
+from suricata.update.main import md5_hexdigest
+
 
 class Md5TestCase(unittest.TestCase):
-
+    """Md5TestCase"""
     def test_hexdigest(self):
         test_file = tempfile.NamedTemporaryFile()
         test_file.write(b"This is a test.")
         test_file.flush()
         self.assertEquals(
             "120ea8a25e5d487bf68b5f7096440019",
-            util.md5_hexdigest(test_file.name))
+            md5_hexdigest(test_file.name))

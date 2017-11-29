@@ -200,7 +200,7 @@ class IdRuleMatcher(object):
         self.signature_id = signature_id
 
     def match(self, rule):
-        return self.generatorId == rule.gid and self.signatureId == rule.sid
+        return self.generator_id == rule.gid and self.signature_id == rule.sid
 
     @classmethod
     def parse(cls, buf):

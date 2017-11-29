@@ -6,6 +6,7 @@ build
 _work
 dist/
 suricata_update.egg-info/
+tests/tmp/
 
 # Development update.yaml
 /update.yaml
