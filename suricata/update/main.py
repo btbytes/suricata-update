@@ -150,22 +150,13 @@ def test_configuration(path, rule_filename=None):
 
 
 def extract_tar(filename):
-    files = {}
-    tf = tarfile.open(filename, mode="r:*")
-    try:
-        while True:
-            member = tf.next()
-            if member is None:
-                break
-            if not member.isfile():
-                continue
-            fileobj = tf.extractfile(member)
+    filedata = {}
+    with tarfile.open(filename, mode='r:*') as tf:
+        for name in tf.getnames():
+            fileobj = tf.extractfile(name)
             if fileobj:
-                files[member.name] = fileobj.read()
-    finally:
-        tf.close()
-
-    return files
+                filedata[name] = fileobj.read()
+    return filedata
 
 
 def extract_zip(filename):
