@@ -677,15 +677,13 @@ def write_to_directory(directory, files, rulemap):
                     mode="w").write(u"\n".join(content))
 
 
-def write_yaml_fragment(filename, files):
-    logger.info("Writing YAML configuration fragment: %s" % (filename))
-    with open(filename, "w") as fileobj:
-        print("%YAML 1.1", file=fileobj)
-        print("---", file=fileobj)
-        print("rule-files:", file=fileobj)
-        for fn in sorted(files):
-            if fn.endswith(".rules"):
-                print("  - %s" % os.path.basename(fn), file=fileobj)
+def write_yaml_fragment(outfile, filenames):
+    logger.info("Writing YAML configuration fragment: %s" % (outfile))
+    rulefiles = ['  - %s' % os.path.basename(fn) for fn in filenames
+                 if fn.endswith('.rules')]
+    with open(outfile, 'w') as f:
+        f.writelines(['%YAML 1.1', '---', 'rule-files:'])
+        f.writelines(rulefiles)
 
 
 def write_sid_msg_map(filename, rulemap, version=1):
