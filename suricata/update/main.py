@@ -678,7 +678,7 @@ def write_to_directory(directory, files, rulemap):
 
 
 def write_yaml_fragment(outfile, filenames):
-    logger.info("Writing YAML configuration fragment: %s" % (outfile))
+    logger.info('Writing YAML configuration fragment: %s', outfile)
     rulefiles = ['  - %s' % os.path.basename(fn) for fn in filenames
                  if fn.endswith('.rules')]
     with open(outfile, 'w') as f:
@@ -687,8 +687,8 @@ def write_yaml_fragment(outfile, filenames):
 
 
 def write_sid_msg_map(filename, rulemap, version=1):
-    logger.info('Writing sid-msg.map %s.', filename)
-    with io.open(filename, encoding="utf-8", mode="w") as fileobj:
+    logger.info('Writing sid-msg.map (v%s) %s.', version, filename)
+    with io.open(filename, encoding='utf-8', mode='w') as fileobj:
         for key in rulemap:
             rule = rulemap[key]
             if version == 2:
@@ -722,9 +722,9 @@ def build_rule_map(rules):
 def dump_sample_configs():
     for filename in configs.filenames:
         if os.path.exists(filename):
-            logger.info("File already exists, not dumping %s." % (filename))
+            logger.info('File already exists, not dumping %s.', filename)
         else:
-            logger.info("Creating %s." % (filename))
+            logger.info('Dumping sample config %s.', filename)
             shutil.copy(os.path.join(configs.directory, filename), filename)
 
 
