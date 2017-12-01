@@ -687,7 +687,7 @@ def write_yaml_fragment(outfile, filenames):
 
 
 def write_sid_msg_map(filename, rulemap, version=1):
-    logger.info("Writing sid-msg.map %s." % (filename))
+    logger.info('Writing sid-msg.map %s.', filename)
     with io.open(filename, encoding="utf-8", mode="w") as fileobj:
         for key in rulemap:
             rule = rulemap[key]
