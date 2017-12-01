@@ -1010,6 +1010,7 @@ def load_sources(config, suricata_version):
                     code = source["code"]
                 else:
                     code = config.get("etpro")
+                suricata.update.loghandler.add_secret(code, "code")
                 if not code:
                     logger.error("ET-Pro source specified without code: %s",
                                  str(source))
